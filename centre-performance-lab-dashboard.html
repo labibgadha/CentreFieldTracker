@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Centre Performance Lab</title>
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#080b10; --panel:#10151d; --panel2:#151b24; --border:#26303c;
+  --text:#f4f7fb; --muted:#8d99a8; --accent:#62d5ff; --green:#54e39a;
+  --yellow:#ffd166; --red:#ff6b7a; --purple:#a78bfa;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+button,input,select{font:inherit}
+.app{display:flex;min-height:100vh}
+.sidebar{width:240px;background:#0b0f15;border-right:1px solid var(--border);padding:24px 16px;position:fixed;inset:0 auto 0 0}
+.logo{font-weight:800;font-size:18px;letter-spacing:-.4px;margin:4px 10px 5px}
+.logo span{color:var(--accent)}
+.subtitle{color:var(--muted);font-size:11px;margin:0 10px 28px;text-transform:uppercase;letter-spacing:1.2px}
+.nav{display:grid;gap:5px}
+.nav button{border:0;background:transparent;color:#9ba6b5;text-align:left;padding:11px 12px;border-radius:9px;cursor:pointer}
+.nav button.active,.nav button:hover{background:#151c25;color:#fff}
+.main{margin-left:240px;width:calc(100% - 240px);padding:26px 30px}
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
+h1{margin:0;font-size:28px;letter-spacing:-1px}
+.eyebrow{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px}
+.status{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:999px;background:#0d1219;color:var(--muted);font-size:12px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--red)}
+.dot.online{background:var(--green);box-shadow:0 0 10px #54e39a}
+.controls{display:flex;gap:8px;align-items:center}
+select,.input{background:#0d1219;border:1px solid var(--border);color:#fff;border-radius:8px;padding:9px 11px;outline:none}
+.grid{display:grid;gap:14px}
+.kpis{grid-template-columns:repeat(6,minmax(0,1fr));margin-bottom:14px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:13px;padding:17px}
+.kpi-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.9px}
+.kpi-value{font-size:29px;font-weight:750;letter-spacing:-1px;margin-top:9px}
+.kpi-unit{font-size:12px;color:var(--muted);margin-left:3px}
+.live{color:var(--accent)}
+.green{color:var(--green)}
+.yellow{color:var(--yellow)}
+.red{color:var(--red)}
+.charts{grid-template-columns:1.4fr 1fr;margin-bottom:14px}
+.chart-card{height:335px}
+.chart-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.chart-title strong{font-size:14px}
+.chart-title span{font-size:11px;color:var(--muted)}
+.chart-wrap{height:275px;position:relative}
+.bottom{grid-template-columns:1fr 1fr 1fr}
+.map{height:275px;background:#0a1016;border-radius:9px;position:relative;overflow:hidden;border:1px solid #1c2631}
+.map-grid{position:absolute;inset:0;background-image:linear-gradient(#18222d 1px,transparent 1px),linear-gradient(90deg,#18222d 1px,transparent 1px);background-size:32px 32px;opacity:.45}
+.map-line{position:absolute;inset:20px;background:linear-gradient(135deg,transparent 0 12%,rgba(98,213,255,.15) 12.2% 12.7%,transparent 13% 35%,rgba(98,213,255,.15) 35.2% 35.7%,transparent 36% 68%,rgba(98,213,255,.15) 68.2% 68.7%,transparent 69%);transform:rotate(-8deg)}
+.gps-dot{position:absolute;width:12px;height:12px;background:var(--accent);border-radius:50%;box-shadow:0 0 0 8px rgba(98,213,255,.12),0 0 20px rgba(98,213,255,.6);transition:.3s}
+.map-note{position:absolute;left:12px;bottom:10px;font-size:11px;color:var(--muted)}
+.info-list{display:grid;gap:12px}
+.row{display:flex;justify-content:space-between;border-bottom:1px solid #202934;padding-bottom:9px}
+.row:last-child{border:0}
+.row span:first-child{color:var(--muted);font-size:12px}
+.row span:last-child{font-weight:650;font-size:13px}
+.table{width:100%;border-collapse:collapse;font-size:12px}
+.table th,.table td{text-align:left;padding:11px 8px;border-bottom:1px solid #202934}
+.table th{color:var(--muted);font-weight:500;text-transform:uppercase;font-size:10px;letter-spacing:.7px}
+.empty{color:var(--muted);text-align:center;padding:35px}
+.notice{margin-bottom:14px;background:#111923;border:1px solid #26384a;padding:12px 14px;border-radius:10px;color:#aeb8c6;font-size:12px}
+.notice b{color:#fff}
+@media(max-width:1100px){.kpis{grid-template-columns:repeat(3,1fr)}.charts,.bottom{grid-template-columns:1fr}.sidebar{width:190px}.main{margin-left:190px;width:calc(100% - 190px)}}
+@media(max-width:720px){.sidebar{display:none}.main{margin:0;width:100%;padding:18px}.kpis{grid-template-columns:repeat(2,1fr)}.topbar{align-items:flex-start;gap:10px;flex-direction:column}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+  <div class="logo">CENTRE <span>PERFORMANCE LAB</span></div>
+  <div class="subtitle">Track & Field Analytics</div>
+  <div class="nav">
+    <button class="active">Dashboard</button>
+    <button>Live Tracking</button>
+    <button>Athletes</button>
+    <button>Sessions</button>
+    <button>Sprint Analytics</button>
+    <button>Long Jump</button>
+    <button>High Jump</button>
+    <button>Throws</button>
+    <button>Reports</button>
+    <button>Settings</button>
+  </div>
+</aside>
+
+<main class="main">
+  <div class="topbar">
+    <div>
+      <div class="eyebrow">Centre College · Track & Field</div>
+      <h1>Performance Dashboard</h1>
+    </div>
+    <div class="controls">
+      <select id="event">
+        <option>100m</option><option>200m</option><option>400m</option>
+        <option>Long Jump</option><option>High Jump</option><option>Throws</option>
+      </select>
+      <select id="athlete">
+        <option value="001">Athlete 001</option>
+      </select>
+      <div class="status"><span id="dot" class="dot"></span><span id="connection">MQTT OFFLINE</span></div>
+    </div>
+  </div>
+
+  <div class="notice">
+    <b>LIVE SENSOR MODE:</b> This dashboard listens directly to your ESP32 MQTT stream.
+    Configure the broker WebSocket URL below in the script before hosting.
+  </div>
+
+  <section class="grid kpis">
+    <div class="card"><div class="kpi-label">Session Time</div><div class="kpi-value live" id="time">0.00<span class="kpi-unit">s</span></div></div>
+    <div class="card"><div class="kpi-label">Distance</div><div class="kpi-value" id="distance">0.00<span class="kpi-unit">m</span></div></div>
+    <div class="card"><div class="kpi-label">Velocity</div><div class="kpi-value live" id="velocity">0.00<span class="kpi-unit">m/s</span></div></div>
+    <div class="card"><div class="kpi-label">Max Velocity</div><div class="kpi-value green" id="maxVelocity">0.00<span class="kpi-unit">m/s</span></div></div>
+    <div class="card"><div class="kpi-label">Acceleration</div><div class="kpi-value" id="acceleration">0.00<span class="kpi-unit">m/s²</span></div></div>
+    <div class="card"><div class="kpi-label">Max Deceleration</div><div class="kpi-value red" id="deceleration">0.00<span class="kpi-unit">m/s²</span></div></div>
+  </section>
+
+  <section class="grid charts">
+    <div class="card chart-card">
+      <div class="chart-title"><strong>Velocity vs Time</strong><span>LIVE</span></div>
+      <div class="chart-wrap"><canvas id="velocityChart"></canvas></div>
+    </div>
+    <div class="card chart-card">
+      <div class="chart-title"><strong>Acceleration vs Time</strong><span>IMU</span></div>
+      <div class="chart-wrap"><canvas id="accelChart"></canvas></div>
+    </div>
+    <div class="card chart-card">
+      <div class="chart-title"><strong>Velocity vs Distance</strong><span>PHASE ANALYSIS</span></div>
+      <div class="chart-wrap"><canvas id="distanceChart"></canvas></div>
+    </div>
+    <div class="card chart-card">
+      <div class="chart-title"><strong>Acceleration Components</strong><span>MPU6050</span></div>
+      <div class="chart-wrap"><canvas id="imuChart"></canvas></div>
+    </div>
+  </section>
+
+  <section class="grid bottom">
+    <div class="card">
+      <div class="chart-title"><strong>GPS Position</strong><span id="gpsStatus">NO FIX</span></div>
+      <div class="map"><div class="map-grid"></div><div class="map-line"></div><div class="gps-dot" id="gpsDot" style="left:48%;top:48%"></div><div class="map-note" id="gpsText">Waiting for GPS data…</div></div>
+    </div>
+    <div class="card">
+      <div class="chart-title"><strong>Live Sensor State</strong><span>ESP32</span></div>
+      <div class="info-list">
+        <div class="row"><span>GPS speed</span><span id="gpsSpeed">0.00 m/s</span></div>
+        <div class="row"><span>Satellites</span><span id="satellites">0</span></div>
+        <div class="row"><span>Accel magnitude</span><span id="accelMag">0.00 m/s²</span></div>
+        <div class="row"><span>Gyro X</span><span id="gx">0.00 °/s</span></div>
+        <div class="row"><span>Gyro Y</span><span id="gy">0.00 °/s</span></div>
+        <div class="row"><span>Gyro Z</span><span id="gz">0.00 °/s</span></div>
+        <div class="row"><span>Sequence</span><span id="sequence">—</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="chart-title"><strong>Session Summary</strong><span id="sessionState">WAITING</span></div>
+      <div class="info-list">
+        <div class="row"><span>Event</span><span id="summaryEvent">100m</span></div>
+        <div class="row"><span>Athlete</span><span id="summaryAthlete">001</span></div>
+        <div class="row"><span>Best velocity</span><span id="summaryMax">0.00 m/s</span></div>
+        <div class="row"><span>Peak acceleration</span><span id="summaryAccel">0.00 m/s²</span></div>
+        <div class="row"><span>Last packet</span><span id="lastPacket">—</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="card" style="margin-top:14px">
+    <div class="chart-title"><strong>Recent Sensor Packets</strong><span id="packetCount">0 packets</span></div>
+    <table class="table">
+      <thead><tr><th>Time</th><th>Sequence</th><th>Distance</th><th>Velocity</th><th>Acceleration</th><th>GPS</th></tr></thead>
+      <tbody id="packetTable"><tr><td colspan="6" class="empty">Waiting for MQTT packets…</td></tr></tbody>
+    </table>
+  </div>
+</main>
+</div>
+
+<script>
+/* ============================================================
+   CENTRE PERFORMANCE LAB — STATIC MQTT DASHBOARD
+   ============================================================
+   IMPORTANT:
+   Your MQTT broker must expose a WebSocket listener.
+   Example Mosquitto config:
+
+   listener 1883
+   protocol mqtt
+
+   listener 9001
+   protocol websockets
+
+   Then set MQTT_URL below to:
+   ws://YOUR_COMPUTER_IP:9001
+
+   For HTTPS hosting, use WSS instead:
+   wss://YOUR_DOMAIN:9001
+   ============================================================ */
+
+const CONFIG = {
+  MQTT_URL: "ws://192.168.1.100:9001",
+  MQTT_USERNAME: "",
+  MQTT_PASSWORD: "",
+  TOPIC_ROOT: "centre/athletes",
+  ATHLETE_ID: "001",
+  MAX_POINTS: 300
+};
+
+let mqttClient = null;
+let packetHistory = [];
+let maxVelocity = 0;
+let maxAcceleration = 0;
+let maxDeceleration = 0;
+
+const $ = id => document.getElementById(id);
+const fmt = (n,d=2) => Number.isFinite(Number(n)) ? Number(n).toFixed(d) : "0.00";
+
+function chartOptions(yTitle){
+  return {
+    responsive:true, maintainAspectRatio:false, animation:false,
+    interaction:{mode:"index",intersect:false},
+    plugins:{legend:{display:true,labels:{color:"#9aa6b5",boxWidth:10,font:{size:10}}}},
+    scales:{
+      x:{ticks:{color:"#687483",maxTicksLimit:8},grid:{color:"#1d2732"}},
+      y:{ticks:{color:"#687483"},grid:{color:"#1d2732"},title:{display:true,text:yTitle,color:"#7f8b99"}}
+    }
+  };
+}
+const velocityChart = new Chart($("velocityChart"),{
+  type:"line",data:{labels:[],datasets:[{label:"Velocity",data:[],borderColor:"#62d5ff",backgroundColor:"rgba(98,213,255,.08)",fill:true,tension:.25,pointRadius:0}]},
+  options:chartOptions("m/s")
+});
+const accelChart = new Chart($("accelChart"),{
+  type:"line",data:{labels:[],datasets:[{label:"Acceleration",data:[],borderColor:"#54e39a",tension:.25,pointRadius:0}]},
+  options:chartOptions("m/s²")
+});
+const distanceChart = new Chart($("distanceChart"),{
+  type:"line",data:{labels:[],datasets:[{label:"Velocity",data:[],borderColor:"#a78bfa",tension:.25,pointRadius:0}]},
+  options:chartOptions("m/s")
+});
+const imuChart = new Chart($("imuChart"),{
+  type:"line",data:{labels:[],datasets:[
+    {label:"X",data:[],borderColor:"#62d5ff",tension:.2,pointRadius:0},
+    {label:"Y",data:[],borderColor:"#54e39a",tension:.2,pointRadius:0},
+    {label:"Z",data:[],borderColor:"#ffd166",tension:.2,pointRadius:0}
+  ]},
+  options:chartOptions("m/s²")
+});
+
+function connectMQTT(){
+  $("connection").textContent = "CONNECTING…";
+  mqttClient = mqtt.connect(CONFIG.MQTT_URL,{
+    username:CONFIG.MQTT_USERNAME || undefined,
+    password:CONFIG.MQTT_PASSWORD || undefined,
+    clientId:"centre-dashboard-"+Math.random().toString(16).slice(2),
+    clean:true,
+    reconnectPeriod:3000,
+    connectTimeout:8000
+  });
+
+  mqttClient.on("connect",()=>{
+    $("dot").classList.add("online");
+    $("connection").textContent = "MQTT ONLINE";
+    const topic = `${CONFIG.TOPIC_ROOT}/${CONFIG.ATHLETE_ID}/#`;
+    mqttClient.subscribe(topic,{qos:0});
+  });
+
+  mqttClient.on("reconnect",()=>{
+    $("dot").classList.remove("online");
+    $("connection").textContent = "RECONNECTING…";
+  });
+
+  mqttClient.on("offline",()=>{
+    $("dot").classList.remove("online");
+    $("connection").textContent = "MQTT OFFLINE";
+  });
+
+  mqttClient.on("error",(err)=>{
+    console.error("MQTT:",err);
+    $("dot").classList.remove("online");
+    $("connection").textContent = "MQTT ERROR";
+  });
+
+  mqttClient.on("message",(topic,payload)=>{
+    try{
+      const data = JSON.parse(payload.toString());
+      handlePacket(data,topic);
+    }catch(e){ console.warn("Invalid MQTT JSON",e); }
+  });
+}
+
+function handlePacket(data,topic){
+  if(data.athleteId && data.athleteId !== $("athlete").value) return;
+
+  const t = Number(data.sessionElapsed ?? data.timestamp ?? 0);
+  const velocity = Number(data.velocity ?? data.gpsSpeed ?? 0);
+  const acceleration = Number(data.acceleration ?? 0);
+  const distance = Number(data.distance ?? 0);
+
+  maxVelocity = Math.max(maxVelocity,velocity);
+  maxAcceleration = Math.max(maxAcceleration,acceleration);
+  if(acceleration < 0) maxDeceleration = Math.min(maxDeceleration,acceleration);
+
+  const packet = {
+    ...data,
+    t, velocity, acceleration, distance,
+    receivedAt:new Date()
+  };
+  packetHistory.push(packet);
+  if(packetHistory.length > CONFIG.MAX_POINTS) packetHistory.shift();
+
+  updateUI(packet);
+  updateCharts(packet);
+  updateTable(packet);
+}
+
+function updateUI(d){
+  $("time").innerHTML = `${fmt(d.sessionElapsed)}<span class="kpi-unit">s</span>`;
+  $("distance").innerHTML = `${fmt(d.distance)}<span class="kpi-unit">m</span>`;
+  $("velocity").innerHTML = `${fmt(d.velocity)}<span class="kpi-unit">m/s</span>`;
+  $("maxVelocity").innerHTML = `${fmt(maxVelocity)}<span class="kpi-unit">m/s</span>`;
+  $("acceleration").innerHTML = `${fmt(d.acceleration)}<span class="kpi-unit">m/s²</span>`;
+  $("deceleration").innerHTML = `${fmt(maxDeceleration)}<span class="kpi-unit">m/s²</span>`;
+
+  $("gpsSpeed").textContent = `${fmt(d.gpsSpeed)} m/s`;
+  $("satellites").textContent = d.gpsSatellites ?? 0;
+  $("accelMag").textContent = `${fmt(d.acceleration)} m/s²`;
+  $("gx").textContent = `${fmt(d.gx)} °/s`;
+  $("gy").textContent = `${fmt(d.gy)} °/s`;
+  $("gz").textContent = `${fmt(d.gz)} °/s`;
+  $("sequence").textContent = d.sequence ?? "—";
+
+  $("summaryEvent").textContent = d.event ?? $("event").value;
+  $("summaryAthlete").textContent = d.athleteId ?? $("athlete").value;
+  $("summaryMax").textContent = `${fmt(maxVelocity)} m/s`;
+  $("summaryAccel").textContent = `${fmt(maxAcceleration)} m/s²`;
+  $("lastPacket").textContent = new Date().toLocaleTimeString();
+
+  if(Number(d.latitude) && Number(d.longitude)){
+    $("gpsStatus").textContent = `${d.gpsSatellites ?? 0} SAT`;
+    $("gpsText").textContent = `${Number(d.latitude).toFixed(6)}, ${Number(d.longitude).toFixed(6)}`;
+    // Relative visualization only; replace with a real map later.
+    const x = 20 + ((Number(d.longitude)*1000)%60);
+    const y = 20 + ((Number(d.latitude)*1000)%60);
+    $("gpsDot").style.left = Math.max(5,Math.min(92,x))+"%";
+    $("gpsDot").style.top = Math.max(5,Math.min(88,y))+"%";
+  }
+
+  $("sessionState").textContent = d.sessionId ? "ACTIVE" : "LIVE";
+  $("packetCount").textContent = `${packetHistory.length} packets`;
+}
+
+function pushChart(chart,label,value){
+  chart.data.labels.push(label);
+  if(chart.data.labels.length > CONFIG.MAX_POINTS) chart.data.labels.shift();
+  if(Array.isArray(value)){
+    value.forEach((v,i)=>{
+      chart.data.datasets[i].data.push(v);
+      if(chart.data.datasets[i].data.length > CONFIG.MAX_POINTS) chart.data.datasets[i].data.shift();
+    });
+  }else{
+    chart.data.datasets[0].data.push(value);
+    if(chart.data.datasets[0].data.length > CONFIG.MAX_POINTS) chart.data.datasets[0].data.shift();
+  }
+  chart.update("none");
+}
+
+function updateCharts(d){
+  const label = fmt(d.sessionElapsed,1);
+  pushChart(velocityChart,label,d.velocity);
+  pushChart(accelChart,label,d.acceleration);
+  pushChart(distanceChart,fmt(d.distance,1),d.velocity);
+  pushChart(imuChart,label,[Number(d.ax||0),Number(d.ay||0),Number(d.az||0)]);
+}
+
+function updateTable(d){
+  const tbody = $("packetTable");
+  if(tbody.children.length===1 && tbody.children[0].querySelector(".empty")) tbody.innerHTML="";
+  const tr = document.createElement("tr");
+  tr.innerHTML = `
+    <td>${new Date().toLocaleTimeString()}</td>
+    <td>${d.sequence ?? "—"}</td>
+    <td>${fmt(d.distance)} m</td>
+    <td>${fmt(d.velocity)} m/s</td>
+    <td>${fmt(d.acceleration)} m/s²</td>
+    <td>${Number(d.latitude)?Number(d.latitude).toFixed(5)+", "+Number(d.longitude).toFixed(5):"—"}</td>`;
+  tbody.prepend(tr);
+  while(tbody.children.length>8) tbody.removeChild(tbody.lastChild);
+}
+
+$("event").addEventListener("change",e=>{
+  $("summaryEvent").textContent=e.target.value;
+});
+$("athlete").addEventListener("change",e=>{
+  $("summaryAthlete").textContent=e.target.value;
+});
+
+connectMQTT();
+</script>
+</body>
+</html>
