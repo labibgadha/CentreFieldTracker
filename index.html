@@ -2,329 +2,487 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Centre Performance Lab — MQTT Test Dashboard</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Centre Performance Lab</title>
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 *{box-sizing:border-box}
-:root{
-  --bg:#f5f7fb;--panel:#fff;--text:#172033;--muted:#718096;--line:#e7ebf2;
-  --accent:#111827;--green:#16a34a;--red:#dc2626;--blue:#2563eb;--orange:#f59e0b;
-}
-body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--text)}
+body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:#f5f7fb;color:#172033}
 .app{display:flex;min-height:100vh}
 .sidebar{width:235px;background:#111827;color:#dbe4f0;padding:22px 14px;position:fixed;inset:0 auto 0 0}
-.brand{font-size:19px;font-weight:800;color:#fff;padding:0 12px 26px}
-.brand small{display:block;color:#8ea0b7;font-size:11px;font-weight:500;margin-top:4px}
-.nav{display:grid;gap:5px}
-.nav div{padding:11px 12px;border-radius:9px;font-size:13px}
-.nav .active{background:#273449;color:#fff;font-weight:700}
+.brand{font-size:19px;font-weight:800;color:#fff;padding:0 12px 26px;line-height:1.25}.brand small{display:block;color:#8ea0b7;font-size:11px;font-weight:500;margin-top:5px}
+.nav{display:grid;gap:5px}.nav div{padding:11px 12px;border-radius:9px;font-size:13px}.nav .active{background:#273449;color:#fff;font-weight:700}
 .main{margin-left:235px;width:calc(100% - 235px);padding:22px 28px 40px}
 .top{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:22px}
-.title h1{margin:0;font-size:24px}.title p{margin:5px 0 0;color:var(--muted);font-size:13px}
+.title h1{margin:0;font-size:24px}.title p{margin:5px 0 0;color:#718096;font-size:13px}
 .controls{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
-select,input,button{font:inherit}
-select,input{border:1px solid var(--line);background:#fff;border-radius:8px;padding:10px 12px;color:var(--text)}
-button{border:0;border-radius:8px;padding:10px 14px;font-weight:700;cursor:pointer}
-.btn-dark{background:#111827;color:#fff}.btn-blue{background:var(--blue);color:#fff}.btn-green{background:var(--green);color:#fff}
-.btn-red{background:var(--red);color:#fff}.btn-gray{background:#e8edf4;color:#273449}
+select,button{font:inherit}select{border:1px solid #e7ebf2;background:#fff;border-radius:8px;padding:10px 12px;color:#172033}
+button{border:0;border-radius:8px;padding:11px 15px;font-weight:700;cursor:pointer}
+.btn-blue{background:#2563eb;color:#fff}.btn-green{background:#16a34a;color:#fff}.btn-red{background:#dc2626;color:#fff}.btn-gray{background:#e8edf4;color:#273449}
 button:disabled{opacity:.45;cursor:not-allowed}
-.status{display:flex;align-items:center;gap:7px;background:#fff;border:1px solid var(--line);padding:9px 12px;border-radius:999px;font-size:12px;font-weight:700}
-.dot{width:9px;height:9px;border-radius:50%;background:#94a3b8}.dot.green{background:#22c55e}.dot.red{background:#ef4444}.dot.yellow{background:#f59e0b}
-.config{background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px;margin-bottom:18px;display:none}
-.config.show{display:block}.config-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 2fr;gap:10px}.field label{display:block;font-size:11px;color:var(--muted);margin-bottom:5px;font-weight:700}.field input{width:100%}
-.testbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px}
-.testbar small{color:var(--muted)}
-.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:16px}
-.kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}.kpi .label{font-size:11px;color:var(--muted);font-weight:700}.kpi .value{font-size:25px;font-weight:800;margin-top:7px}.kpi .unit{font-size:11px;color:var(--muted);font-weight:600}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}.grid3{display:grid;grid-template-columns:1.25fr .9fr .9fr;gap:16px;margin-bottom:16px}
-.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px}.card h3{margin:0 0 12px;font-size:14px}.chartbox{height:285px;position:relative}
-.gps{height:230px;border-radius:10px;background:linear-gradient(135deg,#eaf2ff,#f6f8fb);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
-.route{position:absolute;width:78%;height:2px;background:#2563eb;transform:rotate(-17deg);box-shadow:0 0 0 5px rgba(37,99,235,.08)}
-.route:before,.route:after{content:"";position:absolute;width:12px;height:12px;border-radius:50%;background:#2563eb;top:-5px}.route:before{left:0}.route:after{right:0;background:#ef4444}
-.gpstext{text-align:center;z-index:2;background:rgba(255,255,255,.9);padding:12px;border-radius:9px;font-size:12px}
-.sensor-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}.sensor{background:#f7f9fc;border-radius:9px;padding:10px}.sensor b{display:block;font-size:14px;margin-top:4px}.sensor span{font-size:10px;color:var(--muted)}
-.session{display:grid;grid-template-columns:1fr 1fr;gap:12px}.statline{padding:10px 0;border-bottom:1px solid var(--line)}.statline:last-child{border-bottom:0}.statline span{color:var(--muted);font-size:11px}.statline b{float:right;font-size:12px}
-table{width:100%;border-collapse:collapse;font-size:11px}th,td{text-align:left;padding:9px;border-bottom:1px solid var(--line);white-space:nowrap}th{color:var(--muted);font-size:10px;text-transform:uppercase}
-.tablewrap{max-height:310px;overflow:auto}
+.status{display:flex;align-items:center;gap:7px;background:#fff;border:1px solid #e7ebf2;padding:9px 12px;border-radius:999px;font-size:12px;font-weight:700}
+.dot{width:9px;height:9px;border-radius:50%;background:#ef4444}.dot.green{background:#22c55e}.dot.yellow{background:#f59e0b}
 .banner{background:#fff7e6;border:1px solid #fde68a;color:#92400e;padding:11px 13px;border-radius:9px;font-size:12px;margin-bottom:16px}
-.hidden{display:none}
-@media(max-width:1100px){.kpis{grid-template-columns:repeat(3,1fr)}.grid3{grid-template-columns:1fr 1fr}.config-grid{grid-template-columns:1fr 1fr}}
+.testbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.testbar small{color:#718096}
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:16px}
+.kpi{background:#fff;border:1px solid #e7ebf2;border-radius:12px;padding:16px}.kpi .label{font-size:11px;color:#718096;font-weight:700}.kpi .value{font-size:25px;font-weight:800;margin-top:7px}.kpi .unit{font-size:11px;color:#718096}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}.grid3{display:grid;grid-template-columns:1.25fr .9fr .9fr;gap:16px;margin-bottom:16px}
+.card{background:#fff;border:1px solid #e7ebf2;border-radius:12px;padding:16px}.card h3{margin:0 0 12px;font-size:14px}.chartbox{height:285px;position:relative}
+.gps{height:230px;border-radius:10px;background:linear-gradient(135deg,#eaf2ff,#f6f8fb);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+.route{position:absolute;width:78%;height:2px;background:#2563eb;transform:rotate(-17deg);box-shadow:0 0 0 5px rgba(37,99,235,.08)}.route:before,.route:after{content:"";position:absolute;width:12px;height:12px;border-radius:50%;background:#2563eb;top:-5px}.route:before{left:0}.route:after{right:0;background:#ef4444}
+.gpstext{text-align:center;z-index:2;background:rgba(255,255,255,.9);padding:12px;border-radius:9px;font-size:12px}
+.sensor-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}.sensor{background:#f7f9fc;border-radius:9px;padding:10px}.sensor b{display:block;font-size:14px;margin-top:4px}.sensor span{font-size:10px;color:#718096}
+.session{display:grid;grid-template-columns:1fr 1fr;gap:12px}.statline{padding:10px 0;border-bottom:1px solid #e7ebf2}.statline:last-child{border-bottom:0}.statline span{color:#718096;font-size:11px}.statline b{float:right;font-size:12px}
+table{width:100%;border-collapse:collapse;font-size:11px}th,td{text-align:left;padding:9px;border-bottom:1px solid #e7ebf2;white-space:nowrap}th{color:#718096;font-size:10px;text-transform:uppercase}
+.tablewrap{max-height:310px;overflow:auto}
+.log{background:#0b1220;color:#b8c7da;border-radius:9px;padding:10px;height:115px;overflow:auto;font:11px Consolas,monospace;margin-top:12px}
+.log .ok{color:#4ade80}.log .err{color:#f87171}.log .info{color:#60a5fa}
+@media(max-width:1100px){.kpis{grid-template-columns:repeat(3,1fr)}.grid3{grid-template-columns:1fr 1fr}}
 @media(max-width:750px){.sidebar{display:none}.main{margin:0;width:100%;padding:15px}.kpis,.grid2,.grid3{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}}
 </style>
 </head>
 <body>
 <div class="app">
 <aside class="sidebar">
-  <div class="brand">CENTRE PERFORMANCE LAB<small>Track & Field • MQTT Test</small></div>
-  <div class="nav">
-    <div class="active">Dashboard</div><div>Live Tracking</div><div>Athletes</div><div>Sessions</div>
-    <div>Sprint Analytics</div><div>Long Jump</div><div>High Jump</div><div>Throws</div><div>Reports</div><div>Settings</div>
-  </div>
+<div class="brand">CENTRE PERFORMANCE LAB<small>Track & Field • MQTT Test</small></div>
+<div class="nav">
+<div class="active">Dashboard</div><div>Live Tracking</div><div>Athletes</div><div>Sessions</div>
+<div>Sprint Analytics</div><div>Long Jump</div><div>High Jump</div><div>Throws</div><div>Reports</div><div>Settings</div>
+</div>
 </aside>
 
 <main class="main">
-  <div class="top">
-    <div class="title"><h1>Performance Dashboard</h1><p>Centre College · Live sensor performance monitor</p></div>
-    <div class="controls">
-      <select id="event"><option>100m</option><option>200m</option><option>400m</option><option>Long Jump</option><option>High Jump</option><option>Throws</option></select>
-      <select id="athlete"><option value="001">Athlete 001</option><option value="002">Athlete 002</option></select>
-      <div class="status"><span id="dot" class="dot"></span><span id="connectionText">Disconnected</span></div>
-      <button class="btn-gray" id="configBtn">MQTT Settings</button>
-    </div>
-  </div>
+<div class="top">
+<div class="title"><h1>Performance Dashboard</h1><p>Centre College · Live sensor performance monitor</p></div>
+<div class="controls">
+<select id="event"><option>100m</option><option>200m</option><option>400m</option><option>Long Jump</option><option>High Jump</option><option>Throws</option></select>
+<select id="athlete"><option value="001">Athlete 001</option><option value="002">Athlete 002</option></select>
+<div class="status"><span id="dot" class="dot"></span><span id="connectionText">Connecting...</span></div>
+</div>
+</div>
 
-  <div class="banner">
-    <b>TEST MODE:</b> The buttons below generate clearly labeled synthetic sensor packets and publish them through HiveMQ.
-    This is only for verifying the complete MQTT → dashboard pipeline before the ESP32 is connected.
-  </div>
+<div class="banner">
+<b>MQTT TEST MODE:</b> Connected directly to your HiveMQ Cloud broker. Random packets below are published to <b id="topicText">centre/athletes/001/live</b> and then received by this dashboard.
+</div>
 
-  <section class="config" id="config">
-    <div class="config-grid">
-      <div class="field"><label>HiveMQ Host</label><input id="host" value="eedd8d46186c44a28d4a38dcefb6d4f8.s1.eu.hivemq.cloud"></div>
-      <div class="field"><label>WebSocket Port</label><input id="port" value="8884"></div>
-      <div class="field"><label>Path</label><input id="path" value="/mqtt"></div>
-      <div class="field"><label>Username</label><input id="username" value="hellojannu"></div>
-      <div class="field"><label>Password</label><input id="password" type="password" placeholder="Enter HiveMQ password"></div>
-    </div>
-    <div class="testbar">
-      <small>Browser connection uses MQTT over secure WebSockets (wss) on port 8884.</small>
-      <div><button class="btn-green" id="connectBtn">Connect</button><button class="btn-red" id="disconnectBtn" disabled>Disconnect</button></div>
-    </div>
-  </section>
+<div class="testbar">
+<div><b>Live MQTT Controls</b><br><small>Real MQTT publish → HiveMQ → dashboard receive</small></div>
+<div class="controls">
+<button class="btn-blue" id="singleBtn" disabled>Send Random Packet</button>
+<button class="btn-green" id="startBtn" disabled>▶ Start Random Stream</button>
+<button class="btn-red" id="stopBtn" disabled>■ Stop Stream</button>
+</div>
+</div>
 
-  <div class="testbar" style="margin-bottom:16px">
-    <div><b>MQTT Test Controls</b><br><small style="color:#718096">Topic: <span id="topicLabel">centre/athletes/001/live</span></small></div>
-    <div class="controls">
-      <button class="btn-blue" id="singleBtn" disabled>Send Random Packet</button>
-      <button class="btn-green" id="startBtn" disabled>▶ Start Random Stream</button>
-      <button class="btn-red" id="stopBtn" disabled>■ Stop Stream</button>
-    </div>
-  </div>
+<div class="kpis">
+<div class="kpi"><div class="label">SESSION TIME</div><div class="value" id="sessionTime">0.00</div><div class="unit">seconds</div></div>
+<div class="kpi"><div class="label">DISTANCE</div><div class="value" id="distance">0.00</div><div class="unit">meters</div></div>
+<div class="kpi"><div class="label">VELOCITY</div><div class="value" id="velocity">0.00</div><div class="unit">m/s</div></div>
+<div class="kpi"><div class="label">MAX VELOCITY</div><div class="value" id="maxVelocity">0.00</div><div class="unit">m/s</div></div>
+<div class="kpi"><div class="label">ACCELERATION</div><div class="value" id="acceleration">0.00</div><div class="unit">m/s²</div></div>
+<div class="kpi"><div class="label">MAX DECELERATION</div><div class="value" id="maxDecel">0.00</div><div class="unit">m/s²</div></div>
+</div>
 
-  <div class="kpis">
-    <div class="kpi"><div class="label">SESSION TIME</div><div class="value" id="sessionTime">0.00</div><div class="unit">seconds</div></div>
-    <div class="kpi"><div class="label">DISTANCE</div><div class="value" id="distance">0.00</div><div class="unit">meters</div></div>
-    <div class="kpi"><div class="label">VELOCITY</div><div class="value" id="velocity">0.00</div><div class="unit">m/s</div></div>
-    <div class="kpi"><div class="label">MAX VELOCITY</div><div class="value" id="maxVelocity">0.00</div><div class="unit">m/s</div></div>
-    <div class="kpi"><div class="label">ACCELERATION</div><div class="value" id="acceleration">0.00</div><div class="unit">m/s²</div></div>
-    <div class="kpi"><div class="label">MAX DECELERATION</div><div class="value" id="maxDecel">0.00</div><div class="unit">m/s²</div></div>
-  </div>
+<div class="grid2">
+<div class="card"><h3>Velocity vs Time</h3><div class="chartbox"><canvas id="velocityChart"></canvas></div></div>
+<div class="card"><h3>Acceleration vs Time</h3><div class="chartbox"><canvas id="accelChart"></canvas></div></div>
+</div>
+<div class="grid2">
+<div class="card"><h3>Velocity vs Distance</h3><div class="chartbox"><canvas id="distanceChart"></canvas></div></div>
+<div class="card"><h3>Acceleration Components X / Y / Z</h3><div class="chartbox"><canvas id="componentsChart"></canvas></div></div>
+</div>
 
-  <div class="grid2">
-    <div class="card"><h3>Velocity vs Time</h3><div class="chartbox"><canvas id="velocityChart"></canvas></div></div>
-    <div class="card"><h3>Acceleration vs Time</h3><div class="chartbox"><canvas id="accelChart"></canvas></div></div>
-  </div>
+<div class="grid3">
+<div class="card"><h3>GPS / Route</h3><div class="gps"><div class="route"></div><div class="gpstext">GPS TRACK<br><b id="lat">37.645600</b>, <b id="lon">-84.771200</b><br><span id="sats">10</span> satellites · <span id="gpsSpeed">0.00</span> m/s</div></div></div>
+<div class="card"><h3>Live Sensors</h3><div class="sensor-grid">
+<div class="sensor"><span>Acceleration Magnitude</span><b id="accMag">0.00</b></div>
+<div class="sensor"><span>GPS Speed</span><b id="gpsSpeed2">0.00</b></div>
+<div class="sensor"><span>Gyro X</span><b id="gx">0.00</b></div>
+<div class="sensor"><span>Gyro Y</span><b id="gy">0.00</b></div>
+<div class="sensor"><span>Gyro Z</span><b id="gz">0.00</b></div>
+<div class="sensor"><span>Sequence</span><b id="sequence">0</b></div>
+</div></div>
+<div class="card"><h3>Session</h3><div class="session">
+<div class="statline"><span>Event</span><b id="sEvent">100m</b></div>
+<div class="statline"><span>Athlete</span><b id="sAthlete">001</b></div>
+<div class="statline"><span>Best Velocity</span><b id="sBest">0.00 m/s</b></div>
+<div class="statline"><span>Peak Acceleration</span><b id="sPeak">0.00 m/s²</b></div>
+<div class="statline"><span>Session ID</span><b id="sessionId">TEST</b></div>
+<div class="statline"><span>Last Packet</span><b id="lastPacket">—</b></div>
+</div></div>
+</div>
 
-  <div class="grid2">
-    <div class="card"><h3>Velocity vs Distance</h3><div class="chartbox"><canvas id="distanceChart"></canvas></div></div>
-    <div class="card"><h3>Acceleration Components X / Y / Z</h3><div class="chartbox"><canvas id="componentsChart"></canvas></div></div>
-  </div>
-
-  <div class="grid3">
-    <div class="card"><h3>GPS / Route</h3><div class="gps"><div class="route"></div><div class="gpstext">GPS TRACK<br><b id="lat">37.6456</b>, <b id="lon">-84.7712</b><br><span id="sats">10</span> satellites · <span id="gpsSpeed">0.00</span> m/s</div></div></div>
-    <div class="card"><h3>Live Sensors</h3><div class="sensor-grid">
-      <div class="sensor"><span>Acceleration Magnitude</span><b id="accMag">0.00</b></div>
-      <div class="sensor"><span>GPS Speed</span><b id="gpsSpeed2">0.00</b></div>
-      <div class="sensor"><span>Gyro X</span><b id="gx">0.00</b></div>
-      <div class="sensor"><span>Gyro Y</span><b id="gy">0.00</b></div>
-      <div class="sensor"><span>Gyro Z</span><b id="gz">0.00</b></div>
-      <div class="sensor"><span>Sequence</span><b id="sequence">0</b></div>
-    </div></div>
-    <div class="card"><h3>Session</h3><div class="session">
-      <div class="statline"><span>Event</span><b id="sEvent">100m</b></div>
-      <div class="statline"><span>Athlete</span><b id="sAthlete">001</b></div>
-      <div class="statline"><span>Best Velocity</span><b id="sBest">0.00 m/s</b></div>
-      <div class="statline"><span>Peak Acceleration</span><b id="sPeak">0.00 m/s²</b></div>
-      <div class="statline"><span>Session ID</span><b id="sessionId">TEST-001</b></div>
-      <div class="statline"><span>Last Packet</span><b id="lastPacket">—</b></div>
-    </div></div>
-  </div>
-
-  <div class="card">
-    <h3>Live Sensor Packets</h3>
-    <div class="tablewrap"><table><thead><tr><th>Time</th><th>Sequence</th><th>Distance</th><th>Velocity</th><th>Acceleration</th><th>GPS</th></tr></thead>
-    <tbody id="packetTable"></tbody></table></div>
-  </div>
+<div class="card">
+<h3>Live Sensor Packets</h3>
+<div class="tablewrap"><table><thead><tr><th>Time</th><th>Sequence</th><th>Distance</th><th>Velocity</th><th>Acceleration</th><th>GPS</th></tr></thead><tbody id="packetTable"></tbody></table></div>
+<h3 style="margin-top:18px">MQTT Diagnostics</h3>
+<div class="log" id="log"></div>
+</div>
 </main>
 </div>
 
 <script>
-let client=null, streamTimer=null, streamRunning=false;
-let seq=0, simTime=0, simDistance=0, currentVelocity=0, maxVelocity=0, peakAccel=-Infinity, maxDecel=0, lastVelocity=0;
-const topicFor=()=>`centre/athletes/${document.getElementById('athlete').value}/live`;
+/* =========================
+   HIVEMQ CONFIG
+   ========================= */
+const MQTT_HOST="eedd8d46186c44a28d4a38dcefb6d4f8.s1.eu.hivemq.cloud";
+const MQTT_PORT=8884;
+const MQTT_PATH="/mqtt";
+const MQTT_USERNAME="hellojannu";
+const MQTT_PASSWORD="fuckyoubitch";
+
+/*
+ IMPORTANT:
+ Replace only the value above with your HiveMQ password.
+
+ For the first test, this page uses:
+ centre/athletes/001/live
+
+ If HiveMQ ACL rejects that topic, change TEST_TOPIC to:
+ moja-v3.6/message
+ to verify publishing permissions.
+*/
+const TEST_TOPIC_PREFIX="centre/athletes/";
+
+let client=null;
+let streamTimer=null,streamRunning=false;
+let seq=0,simTime=0,simDistance=0,currentVelocity=0,maxVelocity=0,peakAccel=-Infinity,maxDecel=0;
 
 const state={t:[],v:[],a:[],d:[],ax:[],ay:[],az:[]};
 const MAX_POINTS=180;
-const makeChart=(id,label,labels,datasets)=>new Chart(document.getElementById(id),{
- type:'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,animation:false,
- scales:{x:{title:{display:true,text:label}},y:{beginAtZero:false}},plugins:{legend:{display:true,position:'bottom'}}}
-});
-const common=(label)=>({label,data:[],borderWidth:2,pointRadius:0,tension:.25});
-const velocityChart=makeChart('velocityChart','Time (s)',state.t,[common('Velocity (m/s)')]);
-const accelChart=makeChart('accelChart','Time (s)',state.t,[common('Acceleration (m/s²)')]);
-const distanceChart=makeChart('distanceChart','Distance (m)',state.d,[common('Velocity (m/s)')]);
-const componentsChart=makeChart('componentsChart','Time (s)',state.t,[common('Ax'),common('Ay'),common('Az')]);
 
-function logStatus(msg,type='info'){console.log(`[MQTT] ${msg}`)}
-function setConn(connected,connecting=false){
- const dot=document.getElementById('dot'), text=document.getElementById('connectionText');
- dot.className='dot '+(connected?'green':connecting?'yellow':'red');
- text.textContent=connected?'MQTT Connected':connecting?'Connecting...':'Disconnected';
- document.getElementById('singleBtn').disabled=!connected;
- document.getElementById('startBtn').disabled=!connected || streamRunning;
- document.getElementById('stopBtn').disabled=!streamRunning;
+function topic(){
+return TEST_TOPIC_PREFIX+document.getElementById("athlete").value+"/live";
 }
-function updateTopic(){document.getElementById('topicLabel').textContent=topicFor()}
-document.getElementById('athlete').onchange=updateTopic;
 
-document.getElementById('configBtn').onclick=()=>document.getElementById('config').classList.toggle('show');
+function log(message,type="info"){
+const box=document.getElementById("log");
+const line=document.createElement("div");
+line.className=type;
+line.textContent=`[${new Date().toLocaleTimeString()}] ${message}`;
+box.appendChild(line);
+box.scrollTop=box.scrollHeight;
+}
 
-document.getElementById('connectBtn').onclick=()=>{
- const host=document.getElementById('host').value.trim(), port=document.getElementById('port').value.trim();
- const path=document.getElementById('path').value.trim(), username=document.getElementById('username').value.trim();
- const password=document.getElementById('password').value;
- if(!password){alert('Enter your HiveMQ password.');return}
- if(client){try{client.end(true)}catch(e){}}
- setConn(false,true);
- const url=`wss://${host}:${port}${path}`;
- client=mqtt.connect(url,{username,password,protocol:'wss',clean:true,reconnectPeriod:3000,connectTimeout:10000,
-   clientId:'centre-dashboard-'+Math.random().toString(16).slice(2)});
- client.on('connect',()=>{
-   setConn(true); document.getElementById('connectBtn').disabled=true; document.getElementById('disconnectBtn').disabled=false;
-   client.subscribe(topicFor(),{qos:0},err=>{if(err) console.error(err);});
-   logStatus('Connected');
- });
- client.on('message',(topic,msg)=>{
-   try{const packet=JSON.parse(msg.toString()); if(packet.athleteId===document.getElementById('athlete').value) renderPacket(packet)}catch(e){console.error('Bad packet',e)}
- });
- client.on('error',e=>{console.error(e);setConn(false)});
- client.on('close',()=>{setConn(false);document.getElementById('connectBtn').disabled=false;document.getElementById('disconnectBtn').disabled=true});
- client.on('reconnect',()=>setConn(false,true));
-};
-document.getElementById('disconnectBtn').onclick=()=>{
- stopStream(); if(client){client.end();client=null} setConn(false);
- document.getElementById('connectBtn').disabled=false; document.getElementById('disconnectBtn').disabled=true;
-};
+function setStatus(mode){
+const dot=document.getElementById("dot");
+const text=document.getElementById("connectionText");
+dot.className="dot "+(mode==="connected"?"green":mode==="connecting"?"yellow":"");
+text.textContent=mode==="connected"?"MQTT Connected":mode==="connecting"?"Connecting...":"Disconnected";
+}
 
-function resetSimulation(){
- seq=0;simTime=0;simDistance=0;currentVelocity=0;maxVelocity=0;peakAccel=-Infinity;maxDecel=0;lastVelocity=0;
- state.t.length=state.v.length=state.a.length=state.d.length=state.ax.length=state.ay.length=state.az.length=0;
- [velocityChart,accelChart,distanceChart,componentsChart].forEach(c=>c.update());
- document.getElementById('packetTable').innerHTML='';
- document.getElementById('sessionId').textContent='TEST-'+Date.now().toString().slice(-6);
+function updateTopicText(){
+document.getElementById("topicText").textContent=topic();
+document.getElementById("sAthlete").textContent=document.getElementById("athlete").value;
+}
+document.getElementById("athlete").onchange=updateTopicText;
+
+function setButtons(){
+const connected=!!(client&&client.connected);
+document.getElementById("singleBtn").disabled=!connected;
+document.getElementById("startBtn").disabled=!connected||streamRunning;
+document.getElementById("stopBtn").disabled=!streamRunning;
+}
+
+const velocityChart=new Chart(document.getElementById("velocityChart"),{
+type:"line",data:{labels:[],datasets:[{label:"Velocity (m/s)",data:[],borderWidth:2,pointRadius:0,tension:.25}]},
+options:{responsive:true,maintainAspectRatio:false,animation:false,scales:{x:{title:{display:true,text:"Time (s)"}},y:{beginAtZero:true}},plugins:{legend:{display:true,position:"bottom"}}}
+});
+const accelChart=new Chart(document.getElementById("accelChart"),{
+type:"line",data:{labels:[],datasets:[{label:"Acceleration (m/s²)",data:[],borderWidth:2,pointRadius:0,tension:.25}]},
+options:{responsive:true,maintainAspectRatio:false,animation:false,scales:{x:{title:{display:true,text:"Time (s)"}},y:{beginAtZero:false}},plugins:{legend:{display:true,position:"bottom"}}}
+});
+const distanceChart=new Chart(document.getElementById("distanceChart"),{
+type:"line",data:{labels:[],datasets:[{label:"Velocity (m/s)",data:[],borderWidth:2,pointRadius:0,tension:.25}]},
+options:{responsive:true,maintainAspectRatio:false,animation:false,scales:{x:{title:{display:true,text:"Distance (m)"}},y:{beginAtZero:true}},plugins:{legend:{display:true,position:"bottom"}}}
+});
+const componentsChart=new Chart(document.getElementById("componentsChart"),{
+type:"line",data:{labels:[],datasets:[
+{label:"Ax",data:[],borderWidth:2,pointRadius:0,tension:.25},
+{label:"Ay",data:[],borderWidth:2,pointRadius:0,tension:.25},
+{label:"Az",data:[],borderWidth:2,pointRadius:0,tension:.25}]},
+options:{responsive:true,maintainAspectRatio:false,animation:false,scales:{x:{title:{display:true,text:"Time (s)"}},y:{beginAtZero:false}},plugins:{legend:{display:true,position:"bottom"}}}
+});
+
+function connect(){
+if(MQTT_PASSWORD==="PASTE_YOUR_PASSWORD_HERE"){
+alert("Open this HTML and replace PASTE_YOUR_PASSWORD_HERE with your HiveMQ password.");
+return;
+}
+
+setStatus("connecting");
+log("Connecting to HiveMQ WebSocket...");
+
+const url=`wss://${MQTT_HOST}:${MQTT_PORT}${MQTT_PATH}`;
+
+client=mqtt.connect(url,{
+username:MQTT_USERNAME,
+password:MQTT_PASSWORD,
+protocol:"wss",
+clean:true,
+reconnectPeriod:3000,
+connectTimeout:10000,
+clientId:"centre-performance-"+Math.random().toString(16).slice(2)
+});
+
+client.on("connect",()=>{
+setStatus("connected");
+setButtons();
+log("CONNECTED successfully.","ok");
+
+const t=topic();
+log("Subscribing to "+t+"...");
+
+client.subscribe(t,{qos:0},err=>{
+if(err){
+log("SUBSCRIBE ERROR: "+err.message,"err");
+}else{
+log("SUBSCRIBED to "+t,"ok");
+}
+});
+});
+
+client.on("message",(receivedTopic,message)=>{
+log("RECEIVED packet on "+receivedTopic,"ok");
+
+try{
+const packet=JSON.parse(message.toString());
+renderPacket(packet);
+}catch(error){
+log("Invalid JSON packet: "+error.message,"err");
+}
+});
+
+client.on("error",error=>{
+log("MQTT ERROR: "+error.message,"err");
+console.error("MQTT ERROR",error);
+});
+
+client.on("close",()=>{
+log("MQTT WebSocket CLOSED","err");
+setStatus("disconnected");
+setButtons();
+});
+
+client.on("offline",()=>{
+log("MQTT client OFFLINE","err");
+setStatus("disconnected");
+setButtons();
+});
+
+client.on("reconnect",()=>{
+log("MQTT RECONNECTING...","info");
+setStatus("connecting");
+});
 }
 
 function generatePacket(){
- const dt=.10; simTime+=dt; seq++;
- // Synthetic sprint-like acceleration curve: acceleration decreases as speed approaches ~9.5 m/s.
- let a=4.8*Math.exp(-simTime/2.2)-0.12*Math.max(0,simTime-4.5);
- if(simTime>6.5) a=-0.7*Math.min(1,(simTime-6.5)/2);
- a += (Math.random()-.5)*0.35;
- currentVelocity=Math.max(0,Math.min(10.2,currentVelocity+a*dt));
- simDistance += currentVelocity*dt;
- const ax=a+(Math.random()-.5)*.15, ay=(Math.random()-.5)*.45, az=9.81+(Math.random()-.5)*.35;
- const gx=(Math.random()-.5)*1.2, gy=(Math.random()-.5)*1.2, gz=2.2+(Math.random()-.5)*1.5;
- const lat=37.6456 + simDistance/111320*0.0007, lon=-84.7712 + simDistance/111320*0.0005;
- return {
-   athleteId:document.getElementById('athlete').value,event:document.getElementById('event').value,
-   sequence:seq,sessionElapsed:+simTime.toFixed(2),distance:+simDistance.toFixed(3),
-   velocity:+currentVelocity.toFixed(3),acceleration:+a.toFixed(3),gpsSpeed:+(currentVelocity*(.98+Math.random()*.04)).toFixed(3),
-   gpsSatellites:9+Math.floor(Math.random()*4),latitude:+lat.toFixed(6),longitude:+lon.toFixed(6),
-   ax:+ax.toFixed(3),ay:+ay.toFixed(3),az:+az.toFixed(3),gx:+gx.toFixed(3),gy:+gy.toFixed(3),gz:+gz.toFixed(3),
-   testData:true,timestamp:new Date().toISOString()
- };
-}
-function publishPacket() {
-    if (!client || !client.connected) {
-        console.error("MQTT is not connected");
-        return;
-    }
+const dt=.10;
+simTime+=dt;
+seq++;
 
-    const packet = generatePacket();
-    const topic = topicFor();
-    const payload = JSON.stringify(packet);
+let a=4.8*Math.exp(-simTime/2.2)-0.12*Math.max(0,simTime-4.5);
+if(simTime>6.5)a=-0.7*Math.min(1,(simTime-6.5)/2);
+a+=(Math.random()-.5)*.35;
 
-    console.log("Publishing to:", topic);
-    console.log("Payload:", payload);
+currentVelocity=Math.max(0,Math.min(10.2,currentVelocity+a*dt));
+simDistance+=currentVelocity*dt;
 
-    client.publish(
-        topic,
-        payload,
-        {
-            qos: 0,
-            retain: false
-        },
-        function(error) {
-            if (error) {
-                console.error("❌ PUBLISH FAILED:", error);
-            } else {
-                console.log("✅ PUBLISH SUCCESS:", topic);
-            }
-        }
-    );
+const ax=a+(Math.random()-.5)*.15;
+const ay=(Math.random()-.5)*.45;
+const az=9.81+(Math.random()-.5)*.35;
+
+const gx=(Math.random()-.5)*1.2;
+const gy=(Math.random()-.5)*1.2;
+const gz=2.2+(Math.random()-.5)*1.5;
+
+const lat=37.6456+(simDistance/111320)*.0007;
+const lon=-84.7712+(simDistance/111320)*.0005;
+
+return{
+athleteId:document.getElementById("athlete").value,
+event:document.getElementById("event").value,
+sequence:seq,
+sessionElapsed:+simTime.toFixed(2),
+distance:+simDistance.toFixed(3),
+velocity:+currentVelocity.toFixed(3),
+acceleration:+a.toFixed(3),
+gpsSpeed:+(currentVelocity*(.98+Math.random()*.04)).toFixed(3),
+gpsSatellites:9+Math.floor(Math.random()*4),
+latitude:+lat.toFixed(6),
+longitude:+lon.toFixed(6),
+ax:+ax.toFixed(3),
+ay:+ay.toFixed(3),
+az:+az.toFixed(3),
+gx:+gx.toFixed(3),
+gy:+gy.toFixed(3),
+gz:+gz.toFixed(3),
+testData:true,
+timestamp:new Date().toISOString()
+};
 }
 
-client.on("error", function(error) {
-    console.error("🔥 MQTT ERROR:", error);
-});
+function publishPacket(){
+if(!client||!client.connected){
+log("Cannot publish: MQTT is not connected.","err");
+return;
+}
 
-client.on("close", function() {
-    console.error("🔴 MQTT CONNECTION CLOSED");
-});
+const t=topic();
+const packet=generatePacket();
+const payload=JSON.stringify(packet);
 
-client.on("offline", function() {
-    console.error("🟠 MQTT CLIENT OFFLINE");
-});
+log("PUBLISH → "+t);
 
-client.on("reconnect", function() {
-    console.log("🟡 MQTT RECONNECTING...");
+client.publish(t,payload,{qos:0,retain:false},error=>{
+if(error){
+log("❌ PUBLISH FAILED: "+error.message,"err");
+console.error(error);
+}else{
+log("✅ PUBLISH SUCCESS seq="+packet.sequence,"ok");
+}
 });
+}
+
 function startStream(){
- if(streamRunning)return;
- resetSimulation(); streamRunning=true; setConn(true);
- streamTimer=setInterval(publishPacket,100);
- document.getElementById('startBtn').disabled=true; document.getElementById('stopBtn').disabled=false;
+if(streamRunning||!client||!client.connected)return;
+resetSimulation();
+streamRunning=true;
+setButtons();
+log("Random stream STARTED.","ok");
+publishPacket();
+streamTimer=setInterval(publishPacket,100);
 }
-function stopStream(){if(streamTimer){clearInterval(streamTimer);streamTimer=null}streamRunning=false;document.getElementById('stopBtn').disabled=true; if(client&&client.connected)document.getElementById('startBtn').disabled=false}
-document.getElementById('singleBtn').onclick=()=>{if(client&&client.connected){const p=generatePacket();client.publish(topicFor(),JSON.stringify(p))}};
-document.getElementById('startBtn').onclick=startStream;
-document.getElementById('stopBtn').onclick=stopStream;
 
-function push(arr,val){arr.push(val);if(arr.length>MAX_POINTS)arr.shift()}
+function stopStream(){
+if(streamTimer){
+clearInterval(streamTimer);
+streamTimer=null;
+}
+streamRunning=false;
+setButtons();
+log("Random stream STOPPED.","info");
+}
+
+function resetSimulation(){
+seq=0;
+simTime=0;
+simDistance=0;
+currentVelocity=0;
+maxVelocity=0;
+peakAccel=-Infinity;
+maxDecel=0;
+
+state.t.length=0;state.v.length=0;state.a.length=0;state.d.length=0;
+state.ax.length=0;state.ay.length=0;state.az.length=0;
+
+velocityChart.data.labels=[];
+velocityChart.data.datasets[0].data=[];
+accelChart.data.labels=[];
+accelChart.data.datasets[0].data=[];
+distanceChart.data.labels=[];
+distanceChart.data.datasets[0].data=[];
+componentsChart.data.labels=[];
+componentsChart.data.datasets.forEach(d=>d.data=[]);
+
+velocityChart.update("none");
+accelChart.update("none");
+distanceChart.update("none");
+componentsChart.update("none");
+
+document.getElementById("packetTable").innerHTML="";
+document.getElementById("sessionId").textContent="TEST-"+Date.now().toString().slice(-6);
+}
+
+function push(arr,value){
+arr.push(value);
+if(arr.length>MAX_POINTS)arr.shift();
+}
+
 function renderPacket(p){
- lastVelocity=p.velocity||0; maxVelocity=Math.max(maxVelocity,p.velocity||0); peakAccel=Math.max(peakAccel,p.acceleration||0); maxDecel=Math.min(maxDecel,p.acceleration||0);
- document.getElementById('sessionTime').textContent=(p.sessionElapsed||0).toFixed(2);
- document.getElementById('distance').textContent=(p.distance||0).toFixed(2);
- document.getElementById('velocity').textContent=(p.velocity||0).toFixed(2);
- document.getElementById('maxVelocity').textContent=maxVelocity.toFixed(2);
- document.getElementById('acceleration').textContent=(p.acceleration||0).toFixed(2);
- document.getElementById('maxDecel').textContent=maxDecel.toFixed(2);
- document.getElementById('lat').textContent=(p.latitude??0).toFixed(6);document.getElementById('lon').textContent=(p.longitude??0).toFixed(6);
- document.getElementById('sats').textContent=p.gpsSatellites??0;document.getElementById('gpsSpeed').textContent=(p.gpsSpeed||0).toFixed(2);document.getElementById('gpsSpeed2').textContent=(p.gpsSpeed||0).toFixed(2);
- const mag=Math.sqrt((p.ax||0)**2+(p.ay||0)**2+(p.az||0)**2);document.getElementById('accMag').textContent=mag.toFixed(2);
- ['gx','gy','gz'].forEach(k=>document.getElementById(k).textContent=(p[k]||0).toFixed(2));
- document.getElementById('sequence').textContent=p.sequence??0;
- document.getElementById('sEvent').textContent=p.event||'—';document.getElementById('sAthlete').textContent=p.athleteId||'—';
- document.getElementById('sBest').textContent=maxVelocity.toFixed(2)+' m/s';document.getElementById('sPeak').textContent=peakAccel.toFixed(2)+' m/s²';
- document.getElementById('lastPacket').textContent=new Date().toLocaleTimeString();
+maxVelocity=Math.max(maxVelocity,Number(p.velocity)||0);
+peakAccel=Math.max(peakAccel,Number(p.acceleration)||0);
+maxDecel=Math.min(maxDecel,Number(p.acceleration)||0);
 
- push(state.t,p.sessionElapsed);push(state.v,p.velocity);push(state.a,p.acceleration);push(state.d,p.distance);
- push(state.ax,p.ax);push(state.ay,p.ay);push(state.az,p.az);
- velocityChart.data.labels=state.t;velocityChart.data.datasets[0].data=state.v;velocityChart.update('none');
- accelChart.data.labels=state.t;accelChart.data.datasets[0].data=state.a;accelChart.update('none');
- distanceChart.data.labels=state.d;distanceChart.data.datasets[0].data=state.v;distanceChart.update('none');
- componentsChart.data.labels=state.t;componentsChart.data.datasets[0].data=state.ax;componentsChart.data.datasets[1].data=state.ay;componentsChart.data.datasets[2].data=state.az;componentsChart.update('none');
+document.getElementById("sessionTime").textContent=Number(p.sessionElapsed||0).toFixed(2);
+document.getElementById("distance").textContent=Number(p.distance||0).toFixed(2);
+document.getElementById("velocity").textContent=Number(p.velocity||0).toFixed(2);
+document.getElementById("maxVelocity").textContent=maxVelocity.toFixed(2);
+document.getElementById("acceleration").textContent=Number(p.acceleration||0).toFixed(2);
+document.getElementById("maxDecel").textContent=maxDecel.toFixed(2);
 
- const tr=document.createElement('tr');
- tr.innerHTML=`<td>${new Date().toLocaleTimeString()}</td><td>${p.sequence}</td><td>${Number(p.distance).toFixed(2)} m</td><td>${Number(p.velocity).toFixed(2)} m/s</td><td>${Number(p.acceleration).toFixed(2)} m/s²</td><td>${Number(p.latitude).toFixed(4)}, ${Number(p.longitude).toFixed(4)}</td>`;
- document.getElementById('packetTable').prepend(tr);
- const rows=document.getElementById('packetTable').children;if(rows.length>80)rows[rows.length-1].remove();
+document.getElementById("lat").textContent=Number(p.latitude||0).toFixed(6);
+document.getElementById("lon").textContent=Number(p.longitude||0).toFixed(6);
+document.getElementById("sats").textContent=p.gpsSatellites??0;
+document.getElementById("gpsSpeed").textContent=Number(p.gpsSpeed||0).toFixed(2);
+document.getElementById("gpsSpeed2").textContent=Number(p.gpsSpeed||0).toFixed(2);
+
+const mag=Math.sqrt((p.ax||0)**2+(p.ay||0)**2+(p.az||0)**2);
+document.getElementById("accMag").textContent=mag.toFixed(2);
+document.getElementById("gx").textContent=Number(p.gx||0).toFixed(2);
+document.getElementById("gy").textContent=Number(p.gy||0).toFixed(2);
+document.getElementById("gz").textContent=Number(p.gz||0).toFixed(2);
+document.getElementById("sequence").textContent=p.sequence??0;
+
+document.getElementById("sEvent").textContent=p.event||"—";
+document.getElementById("sAthlete").textContent=p.athleteId||"—";
+document.getElementById("sBest").textContent=maxVelocity.toFixed(2)+" m/s";
+document.getElementById("sPeak").textContent=peakAccel.toFixed(2)+" m/s²";
+document.getElementById("lastPacket").textContent=new Date().toLocaleTimeString();
+
+push(state.t,p.sessionElapsed);
+push(state.v,p.velocity);
+push(state.a,p.acceleration);
+push(state.d,p.distance);
+push(state.ax,p.ax);
+push(state.ay,p.ay);
+push(state.az,p.az);
+
+velocityChart.data.labels=state.t;
+velocityChart.data.datasets[0].data=state.v;
+velocityChart.update("none");
+
+accelChart.data.labels=state.t;
+accelChart.data.datasets[0].data=state.a;
+accelChart.update("none");
+
+distanceChart.data.labels=state.d;
+distanceChart.data.datasets[0].data=state.v;
+distanceChart.update("none");
+
+componentsChart.data.labels=state.t;
+componentsChart.data.datasets[0].data=state.ax;
+componentsChart.data.datasets[1].data=state.ay;
+componentsChart.data.datasets[2].data=state.az;
+componentsChart.update("none");
+
+const tr=document.createElement("tr");
+tr.innerHTML=`
+<td>${new Date().toLocaleTimeString()}</td>
+<td>${p.sequence}</td>
+<td>${Number(p.distance).toFixed(2)} m</td>
+<td>${Number(p.velocity).toFixed(2)} m/s</td>
+<td>${Number(p.acceleration).toFixed(2)} m/s²</td>
+<td>${Number(p.latitude).toFixed(4)}, ${Number(p.longitude).toFixed(4)}</td>`;
+document.getElementById("packetTable").prepend(tr);
+
+const rows=document.getElementById("packetTable").children;
+if(rows.length>80)rows[rows.length-1].remove();
 }
 
-document.getElementById('event').onchange=()=>document.getElementById('sEvent').textContent=document.getElementById('event').value;
-updateTopic();setConn(false);
+document.getElementById("singleBtn").onclick=publishPacket;
+document.getElementById("startBtn").onclick=startStream;
+document.getElementById("stopBtn").onclick=stopStream;
+
+document.getElementById("event").onchange=()=>{
+document.getElementById("sEvent").textContent=document.getElementById("event").value;
+};
+
+updateTopicText();
+setStatus("connecting");
+connect();
 </script>
 </body>
 </html>
