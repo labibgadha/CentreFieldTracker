@@ -236,11 +236,51 @@ function generatePacket(){
    testData:true,timestamp:new Date().toISOString()
  };
 }
-function publishPacket(){
- if(!client || !client.connected)return;
- const packet=generatePacket();
- client.publish(topicFor(),JSON.stringify(packet),{qos:0,retain:false});
+function publishPacket() {
+    if (!client || !client.connected) {
+        console.error("MQTT is not connected");
+        return;
+    }
+
+    const packet = generatePacket();
+    const topic = topicFor();
+    const payload = JSON.stringify(packet);
+
+    console.log("Publishing to:", topic);
+    console.log("Payload:", payload);
+
+    client.publish(
+        topic,
+        payload,
+        {
+            qos: 0,
+            retain: false
+        },
+        function(error) {
+            if (error) {
+                console.error("❌ PUBLISH FAILED:", error);
+            } else {
+                console.log("✅ PUBLISH SUCCESS:", topic);
+            }
+        }
+    );
 }
+
+client.on("error", function(error) {
+    console.error("🔥 MQTT ERROR:", error);
+});
+
+client.on("close", function() {
+    console.error("🔴 MQTT CONNECTION CLOSED");
+});
+
+client.on("offline", function() {
+    console.error("🟠 MQTT CLIENT OFFLINE");
+});
+
+client.on("reconnect", function() {
+    console.log("🟡 MQTT RECONNECTING...");
+});
 function startStream(){
  if(streamRunning)return;
  resetSimulation(); streamRunning=true; setConn(true);
